@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-const envApiUrl = import.meta.env.VITE_API_URL;
-const API_URL = envApiUrl
-  ? envApiUrl.replace(/\/+$/, '')
+const API = import.meta.env.VITE_API_URL;
+const API_URL = API
+  ? API.replace(/\/+$/, '')
   : import.meta.env.DEV
     ? 'http://localhost:5001/api'
     : (() => {
