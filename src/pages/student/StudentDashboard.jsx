@@ -9,6 +9,8 @@ import Leaderboard from '../../components/gamification/LeaderboardGamification';
 import { Trophy, BookOpen, Clock, Star, Edit2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+const backendBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/+$/, '') : (import.meta.env.DEV ? 'http://localhost:5001' : '');
+
 const StudentDashboard = () => {
     const { user, logout, updateProfile } = useAuth(); // Assuming updateProfile exists in AuthContext, if not I might need to add it or mock it locally for now.
     const { curriculum, loading, refreshCurriculum } = useCurriculum();
@@ -95,7 +97,7 @@ const StudentDashboard = () => {
                         <div className="relative group cursor-pointer" onClick={() => setShowAvatarModal(true)}>
                             <div className="flex items-center gap-2 p-1 pr-4 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-[#14b8a6] dark:hover:border-[#14b8a6] transition-all">
                                 <div className="w-10 h-10 bg-white dark:bg-slate-700 rounded-full overflow-hidden border-2 border-[#14b8a6]">
-                                    <img src={user?.avatar?.startsWith('/uploads') ? `http://localhost:5001${user.avatar}` : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.avatar || user?.name || 'Felix'}`} alt="Avatar" className="w-full h-full object-cover" />
+                                    <img src={user?.avatar?.startsWith('/uploads') && backendBase ? `${backendBase}${user.avatar}` : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.avatar || user?.name || 'Felix'}`} alt="Avatar" className="w-full h-full object-cover" />
                                 </div>
                                 <span className="font-bold text-slate-700 dark:text-slate-200 hidden sm:block text-sm">{user?.name?.split(' ')[0]}</span>
                             </div>
@@ -339,7 +341,7 @@ const StudentDashboard = () => {
                                     <div className="relative group">
                                         <div className="w-36 h-36 rounded-[2rem] border-4 border-slate-100 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-900 shadow-inner">
                                             <img
-                                                src={user?.avatar?.startsWith('/uploads') ? `http://localhost:5001${user.avatar}` : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.avatar || user?.name || 'Felix'}`}
+                                                src={user?.avatar?.startsWith('/uploads') && backendBase ? `${backendBase}${user.avatar}` : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.avatar || user?.name || 'Felix'}`}
                                                 alt="Current Avatar"
                                                 className="w-full h-full object-cover"
                                             />
