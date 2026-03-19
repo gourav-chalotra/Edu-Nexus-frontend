@@ -8,8 +8,9 @@ import Badge from '../../components/gamification/Badge';
 import Leaderboard from '../../components/gamification/LeaderboardGamification';
 import { Trophy, BookOpen, Clock, Star, Edit2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { BACKEND_URL } from '../../services/api';
 
-const backendBase = (import.meta.env.VITE_API_URL || 'https://edu-nexus-backend.onrender.com').replace(/\/+$/, '');
+const backendBase = BACKEND_URL;
 
 const StudentDashboard = () => {
     const { user, logout, updateProfile } = useAuth(); // Assuming updateProfile exists in AuthContext, if not I might need to add it or mock it locally for now.

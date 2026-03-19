@@ -1,7 +1,12 @@
 import axios from 'axios';
 
-const API = import.meta.env.VITE_API_URL || 'https://edu-nexus-backend.onrender.com/api';
-const API_URL = API.replace(/\/+$/, '');
+let rootUrl = (import.meta.env.VITE_API_URL || 'https://edu-nexus-backend.onrender.com').replace(/\/+$/, '');
+if (rootUrl.endsWith('/api')) {
+    rootUrl = rootUrl.slice(0, -4);
+}
+
+export const BACKEND_URL = rootUrl;
+const API_URL = `${rootUrl}/api`;
 
 console.log('Using API_URL:', API_URL);
 
