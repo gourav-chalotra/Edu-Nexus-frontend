@@ -1,13 +1,7 @@
 import axios from 'axios';
 
-const API = import.meta.env.VITE_API_URL;
-const API_URL = API
-  ? API.replace(/\/+$/, '')
-  : import.meta.env.DEV
-    ? 'http://localhost:5001/api'
-    : (() => {
-        throw new Error('VITE_API_URL is not defined in production. Set it in Vercel Environment Variables.');
-      })();
+const API = import.meta.env.VITE_API_URL || 'https://edu-nexus-backend.onrender.com/api';
+const API_URL = API.replace(/\/+$/, '');
 
 console.log('Using API_URL:', API_URL);
 
