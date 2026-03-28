@@ -6,18 +6,26 @@ import { Mail, Lock, LogIn, GraduationCap, ShieldAlert, ArrowRight } from 'lucid
 const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const { login, user } = useAuth();
+    const { login, user, loading } = useAuth();
     const navigate = useNavigate();
 
     // Redirect if already logged in
     useEffect(() => {
-        if (user) {
+        if (user && !loading) {
             const redirectPath = user.role === 'admin' ? '/admin'
                 : user.role === 'teacher' ? '/teacher'
                     : '/dashboard';
             navigate(redirectPath, { replace: true });
         }
-    }, [user, navigate]);
+    }, [user, loading, navigate]);
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+                <div className="w-12 h-12 border-4 border-[#6366f1] border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
 
     const handleSubmit = async (e) => {
         e.preventDefault();
