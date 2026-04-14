@@ -82,8 +82,9 @@ const AdminDashboard = () => {
             setShowAddTeacher(false);
             setNewTeacher({ name: '', email: '', password: 'password123', assignedSubjects: [] });
             fetchData();
-        } catch {
-            toast.error('Failed to create teacher');
+        } catch (error) {
+            const message = error.response?.data?.message || 'Failed to create teacher';
+            toast.error(message);
         }
     };
 

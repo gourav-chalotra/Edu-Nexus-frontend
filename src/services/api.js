@@ -76,7 +76,8 @@ export const quizAPI = {
     create: (data) => api.post('/quizzes', data),
     submit: (subjectId, chapterId, answers) => api.post(`/quizzes/${subjectId}/${chapterId}/submit`, { answers }),
     getMyAttempts: () => api.get('/quizzes/attempts'),
-    getAttemptDetails: (attemptId) => api.get(`/quizzes/attempts/${attemptId}`)
+    getAttemptDetails: (attemptId) => api.get(`/quizzes/attempts/${attemptId}`),
+    getStudentAttempts: (userId) => api.get(`/quizzes/student/${userId}`)
 };
 
 // Progress APIs

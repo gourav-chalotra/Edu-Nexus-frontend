@@ -1,712 +1,512 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCurriculum } from '../../context/CurriculumContext';
-import { userAPI } from '../../services/api';
-import { Upload, FileText, CheckCircle, X, Youtube, Plus, Edit3, Trash2, Image as ImageIcon, Users, BookOpen, BarChart2 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { userAPI, quizAPI } from '../../services/api';
+import { BarChart2, Users, Search, Filter, ArrowUpDown, Award, Zap, Layout, X, Calendar, CheckCircle, XCircle, Clock, BookOpen } from 'lucide-react';
 
 const TeacherDashboard = () => {
     const { user, logout } = useAuth();
-    const {
-        curriculum,
-        updateChapterVideo,
-        addChapterAttachment,
-        updateTeacherNote,
-        addChapter,
-        updateChapterDetails,
-        addQuiz
-    } = useCurriculum();
+    const { curriculum } = useCurriculum();
 
     // Filter subjects assigned to this teacher
-    // In a real app, this would be filtered by the backend or context.
-    // For this mock, we'll check user.assignedSubjects or show all if none (fallback)
     const allSubjects = Object.values(curriculum);
-    const subjects = user.assignedSubjects
-        ? allSubjects.filter(s => user.assignedSubjects.includes(s.id))
-        : allSubjects;
+    const subjects = useMemo(() => {
+        if (!user || !user.assignedSubjects || user.assignedSubjects.length === 0) return allSubjects;
+        return allSubjects.filter(s => 
+            user.assignedSubjects.some(as => as.subjectId === s.id)
+        );
+    }, [curriculum, user, allSubjects]);
 
-    const [activeTab, setActiveTab] = useState('content'); // 'content' | 'performance'
     const [students, setStudents] = useState([]);
+    const [loading, setLoading] = useState(true);
+    
+    // Filter & Sort States
+    const [searchTerm, setSearchTerm] = useState('');
+    const [classFilter, setClassFilter] = useState('all');
+    const [sortBy, setSortBy] = useState('xp-desc'); // 'xp-desc' | 'xp-asc' | 'level-desc' | 'name-asc'
 
-    const [showUploadModal, setShowUploadModal] = useState(false);
-    const [modalMode, setModalMode] = useState('notes');
+    // Report Modal State
+    const [selectedStudent, setSelectedStudent] = useState(null);
+    const [studentAttempts, setStudentAttempts] = useState([]);
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [isReportLoading, setIsReportLoading] = useState(false);
 
-    // Selection States
-    const [selectedSubjectId, setSelectedSubjectId] = useState('');
-    const [selectedChapterId, setSelectedChapterId] = useState('');
+    // Get unique classes from assigned subjects or students
+    const availableClasses = useMemo(() => {
+        if (user?.assignedSubjects && user.assignedSubjects.length > 0) {
+            return [...new Set(user.assignedSubjects.map(as => as.classLevel))].filter(Boolean).sort((a, b) => a - b);
+        }
+        return [...new Set(students.map(s => s.classLevel))].filter(Boolean).sort((a, b) => a - b);
+    }, [user, students]);
 
-    // Form States
-    const [videoUrl, setVideoUrl] = useState('');
-    const [attachmentName, setAttachmentName] = useState('');
-    const [attachmentFile, setAttachmentFile] = useState(null);
-    const [quizTitle, setQuizTitle] = useState('');
-    const [teacherNote, setTeacherNote] = useState('');
-
-    // Quiz Builder State
-    const [questions, setQuestions] = useState([]);
-
-    // Chapter Detail States
-    const [chapterTitle, setChapterTitle] = useState('');
-    const [chapterDesc, setChapterDesc] = useState('');
-    const [chapterTopics, setChapterTopics] = useState('');
-
-    const fileInputRef = useRef(null);
-
-    // Initialize selection
+    // Fetch students
     useEffect(() => {
-        if (!selectedSubjectId && subjects.length > 0) {
-            setSelectedSubjectId(subjects[0].id);
-        }
-    }, [subjects, selectedSubjectId]);
-
-    useEffect(() => {
-        if (selectedSubjectId) {
-            const subject = curriculum[selectedSubjectId];
-            if (subject && subject.chapters.length > 0) {
-                const isValid = subject.chapters.some(ch => ch.id === selectedChapterId);
-                if (!isValid) {
-                    setSelectedChapterId(subject.chapters[0].id);
-                }
-            } else {
-                setSelectedChapterId('');
+        const fetchStudents = async () => {
+            setLoading(true);
+            try {
+                const res = await userAPI.getAllStudents();
+                setStudents(res.data.data);
+            } catch (error) {
+                console.error("Failed to fetch students", error);
+            } finally {
+                setLoading(false);
             }
+        };
+        fetchStudents();
+    }, []);
+
+    // Filtered and Sorted Students
+    const filteredStudents = useMemo(() => {
+        let result = [...students];
+
+        // Search filter
+        if (searchTerm) {
+            result = result.filter(s => 
+                s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                s.email.toLowerCase().includes(searchTerm.toLowerCase())
+            );
         }
-    }, [selectedSubjectId, curriculum, selectedChapterId]);
 
-    // Fetch students for performance view
-    useEffect(() => {
-        if (activeTab === 'performance') {
-            const fetchStudents = async () => {
-                try {
-                    const res = await userAPI.getAllStudents();
-                    setStudents(res.data.data);
-                } catch (error) {
-                    console.error("Failed to fetch students", error);
-                }
-            };
-            fetchStudents();
+        // Class filter
+        if (classFilter !== 'all') {
+            result = result.filter(s => s.classLevel?.toString() === classFilter.toString());
         }
-    }, [activeTab]);
 
-    const openModal = (mode) => {
-        setModalMode(mode);
-        setShowUploadModal(true);
-
-        const chapter = getSelectedChapter();
-
-        if (mode === 'teacher_note') {
-            setTeacherNote(chapter?.teacherNote || '');
-        } else if (mode === 'edit_chapter') {
-            if (chapter) {
-                setChapterTitle(chapter.title);
-                setChapterDesc(chapter.description);
-                setChapterTopics(chapter.topics?.join('\n') || '');
+        // Sorting
+        result.sort((a, b) => {
+            switch (sortBy) {
+                case 'xp-desc': return (b.xp || 0) - (a.xp || 0);
+                case 'xp-asc': return (a.xp || 0) - (b.xp || 0);
+                case 'level-desc': return (b.level || 1) - (a.level || 1);
+                case 'name-asc': return a.name.localeCompare(b.name);
+                default: return 0;
             }
-        } else if (mode === 'create_chapter') {
-            setChapterTitle('');
-            setChapterDesc('');
-            setChapterTopics('');
-        } else if (mode === 'quiz') {
-            setQuizTitle(chapter ? `${chapter.title} Quiz` : '');
-            setQuestions([
-                { id: 1, type: 'mcq', question: '', options: ['', '', '', ''], correctAnswer: '', points: 100, image: null }
-            ]);
-        }
-    };
+        });
 
-    const getSelectedChapter = () => {
-        return curriculum[selectedSubjectId]?.chapters.find(ch => ch.id === selectedChapterId);
-    };
+        return result;
+    }, [students, searchTerm, classFilter, sortBy]);
 
-    const handleFileChange = (e) => {
-        if (e.target.files && e.target.files[0]) {
-            setAttachmentFile(e.target.files[0]);
-            if (!attachmentName) {
-                setAttachmentName(e.target.files[0].name);
-            }
-        }
-    };
-
-    // Quiz Builder Functions
-    const addQuestion = () => {
-        setQuestions([
-            ...questions,
-            {
-                id: Date.now(),
-                type: 'mcq',
-                question: '',
-                options: ['', '', '', ''],
-                correctAnswer: '',
-                points: 100,
-                image: null
-            }
-        ]);
-    };
-
-    const removeQuestion = (index) => {
-        const newQuestions = questions.filter((_, i) => i !== index);
-        setQuestions(newQuestions);
-    };
-
-    const updateQuestion = (index, field, value) => {
-        const newQuestions = [...questions];
-        newQuestions[index][field] = value;
-        setQuestions(newQuestions);
-    };
-
-    const updateOption = (qIndex, oIndex, value) => {
-        const newQuestions = [...questions];
-        newQuestions[qIndex].options[oIndex] = value;
-        setQuestions(newQuestions);
-    };
-
-    const handleQuestionImageUpload = async (e, qIndex) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                updateQuestion(qIndex, 'image', reader.result);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-
-        if (!selectedSubjectId) {
-            toast.error('Please select a subject');
-            return;
-        }
-
-        if (modalMode !== 'create_chapter' && !selectedChapterId) {
-            toast.error('Please select a chapter');
-            return;
-        }
-
+    const handleViewReport = async (student) => {
+        setSelectedStudent(student);
+        setShowReportModal(true);
+        setIsReportLoading(true);
         try {
-            if (modalMode === 'video') {
-                let finalUrl = videoUrl;
-                if (videoUrl.includes('watch?v=')) {
-                    finalUrl = videoUrl.replace('watch?v=', 'embed/');
-                } else if (videoUrl.includes('youtu.be/')) {
-                    finalUrl = videoUrl.replace('youtu.be/', 'youtube.com/embed/');
-                }
-                updateChapterVideo(selectedSubjectId, selectedChapterId, finalUrl);
-                toast.success('Video lesson updated!');
-            }
-            else if (modalMode === 'notes') {
-                if (!attachmentFile) {
-                    toast.error('Please select a file to upload');
-                    return;
-                }
-                const newAttachment = {
-                    id: Date.now().toString(),
-                    name: attachmentName,
-                    type: attachmentFile.name.split('.').pop().toUpperCase(),
-                    url: '#'
-                };
-                addChapterAttachment(selectedSubjectId, selectedChapterId, newAttachment);
-                toast.success('Attachment added!');
-                setAttachmentFile(null);
-            }
-            else if (modalMode === 'teacher_note') {
-                updateTeacherNote(selectedSubjectId, selectedChapterId, teacherNote);
-                toast.success('Teacher note updated!');
-            }
-            else if (modalMode === 'create_chapter') {
-                const newChapter = {
-                    title: chapterTitle,
-                    description: chapterDesc,
-                    topics: chapterTopics.split('\n').filter(t => t.trim() !== '')
-                };
-                addChapter(selectedSubjectId, newChapter);
-                toast.success('New chapter created!');
-            }
-            else if (modalMode === 'edit_chapter') {
-                const updates = {
-                    title: chapterTitle,
-                    description: chapterDesc,
-                    topics: chapterTopics.split('\n').filter(t => t.trim() !== '')
-                };
-                updateChapterDetails(selectedSubjectId, selectedChapterId, updates);
-                toast.success('Chapter details updated!');
-            }
-            else if (modalMode === 'quiz') {
-                if (questions.length === 0) {
-                    toast.error('Please add at least one question');
-                    return;
-                }
-
-                // Validate questions
-                for (let i = 0; i < questions.length; i++) {
-                    const q = questions[i];
-                    if (!q.question.trim()) {
-                        toast.error(`Question ${i + 1} is empty`);
-                        return;
-                    }
-                    if (!q.correctAnswer.trim()) {
-                        toast.error(`Question ${i + 1} needs a correct answer`);
-                        return;
-                    }
-                    if (q.type === 'mcq' && q.options.some(o => !o.trim())) {
-                        toast.error(`All options for Question ${i + 1} must be filled`);
-                        return;
-                    }
-                }
-
-                const newQuiz = {
-                    id: Date.now().toString(),
-                    title: quizTitle,
-                    questions: questions.map((q, i) => ({
-                        id: i + 1,
-                        type: q.type,
-                        question: q.question,
-                        options: q.type === 'mcq' ? q.options : [],
-                        correctAnswer: q.correctAnswer,
-                        points: parseInt(q.points) || 100,
-                        image: q.image
-                    }))
-                };
-
-                addQuiz(selectedSubjectId, selectedChapterId, newQuiz);
-                toast.success('Quiz created successfully!');
-                setShowUploadModal(false);
-            }
-
-            if (modalMode !== 'quiz') {
-                setShowUploadModal(false);
-            }
-            setVideoUrl('');
-            setAttachmentName('');
-            setQuizTitle('');
-
+            const res = await quizAPI.getStudentAttempts(student.id || student._id);
+            setStudentAttempts(res.data.data);
         } catch (error) {
-            console.error(error);
-            toast.error('Failed to update content');
+            console.error("Failed to fetch student report", error);
+        } finally {
+            setIsReportLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6 md:p-8 font-quicksand transition-colors duration-300">
+        <div className="min-h-screen bg-[#0f172a] p-6 md:p-8 font-body text-slate-200">
             <div className="max-w-7xl mx-auto space-y-8">
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border-[3px] border-slate-200 dark:border-slate-700 cartoon-border pop-shadow gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-[#6366f1] p-3 rounded-2xl shadow-inner border-[3px] border-[#4f46e5]">
-                            <span className="text-white font-black text-xl drop-shadow-sm">{user?.name?.charAt(0) || 'T'}</span>
+                
+                {/* Header Card */}
+                <div className="bg-slate-800/50 backdrop-blur-xl p-8 rounded-[2.5rem] border-[3px] border-slate-700/50 shadow-2xl flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+                    
+                    <div className="flex items-center gap-6 relative z-10">
+                        <div className="w-16 h-16 rounded-2xl bg-indigo-500 flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.4)] border-2 border-indigo-400/50 group-hover:scale-110 transition-transform duration-500">
+                            <span className="text-white font-black text-2xl drop-shadow-md">{user?.name?.charAt(0) || 'T'}</span>
                         </div>
                         <div>
-                            <h1 className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-wide">Teacher Dashboard</h1>
-                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">Welcome back, {user?.name}</p>
+                            <h1 className="text-3xl font-display font-black text-white tracking-tight mb-1">Teacher Dashboard</h1>
+                            <div className="flex items-center gap-3">
+                                <span className="text-slate-400 font-bold">Welcome back, {user?.name}</span>
+                                <span className="h-4 w-[2px] bg-slate-700"></span>
+                                <span className="text-indigo-400 font-black text-sm uppercase tracking-wider">
+                                    Assigned Subjects: {subjects.length}
+                                </span>
+                            </div>
                         </div>
                     </div>
-                    <button onClick={logout} className="text-[#ef4444] font-bold hover:bg-[#ef4444]/10 dark:hover:bg-[#ef4444]/20 px-6 py-3 rounded-xl transition-colors border-2 border-transparent hover:border-[#ef4444]/20 flex items-center gap-2">
-                        Logout
-                    </button>
-                </div>
 
-                {/* Main Content Area */}
-                <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-sm border-[3px] border-slate-200 dark:border-slate-700 cartoon-border pop-shadow overflow-hidden flex flex-col">
-                    {/* Tabs */}
-                    <div className="flex border-b-[3px] border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-                        <button
-                            onClick={() => setActiveTab('content')}
-                            className={`flex-1 flex items-center justify-center gap-3 px-6 py-5 font-bold text-lg transition-colors border-r-[3px] border-slate-200 dark:border-slate-700 ${activeTab === 'content'
-                                ? 'text-[#6366f1] dark:text-[#818cf8] bg-white dark:bg-slate-800 relative after:absolute after:bottom-0 after:left-0 after:w-full after:h-1 after:bg-[#6366f1]'
-                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
-                                }`}
-                        >
-                            <BookOpen className={activeTab === 'content' ? 'animate-bounce' : ''} />
-                            Content Management
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('performance')}
-                            className={`flex-1 flex items-center justify-center gap-3 px-6 py-5 font-bold text-lg transition-colors ${activeTab === 'performance'
-                                ? 'text-[#6366f1] dark:text-[#818cf8] bg-white dark:bg-slate-800 relative after:absolute after:bottom-0 after:left-0 after:w-full after:h-1 after:bg-[#6366f1]'
-                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
-                                }`}
-                        >
-                            <BarChart2 className={activeTab === 'performance' ? 'animate-bounce' : ''} />
-                            Student Performance
+                    <div className="flex items-center gap-4 relative z-10">
+                        <button onClick={logout} className="px-6 py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold transition-all border-2 border-red-500/20 hover:border-red-500/40 flex items-center gap-2">
+                            Logout
                         </button>
                     </div>
+                </div>
 
-                    <div className="p-6 sm:p-8 flex-1">
+                {/* Stats Summary */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="bg-slate-800/40 p-6 rounded-3xl border-2 border-slate-700/50 flex items-center gap-4 hover:border-indigo-500/30 transition-all group">
+                        <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                            <Users size={24} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Students</p>
+                            <p className="text-2xl font-black text-white">{students.length}</p>
+                        </div>
+                    </div>
+                    <div className="bg-slate-800/40 p-6 rounded-3xl border-2 border-slate-700/50 flex items-center gap-4 hover:border-amber-500/30 transition-all group">
+                        <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
+                            <Zap size={24} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Avg. XP</p>
+                            <p className="text-2xl font-black text-white">
+                                {students.length ? Math.round(students.reduce((acc, s) => acc + (s.xp || 0), 0) / students.length) : 0}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="bg-slate-800/40 p-6 rounded-3xl border-2 border-slate-700/50 flex items-center gap-4 hover:border-emerald-500/30 transition-all group">
+                        <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                            <Award size={24} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Top Level</p>
+                            <p className="text-2xl font-black text-white">{students.length ? Math.max(...students.map(s => s.level || 1)) : 1}</p>
+                        </div>
+                    </div>
+                    <div className="bg-slate-800/40 p-6 rounded-3xl border-2 border-slate-700/50 flex items-center gap-4 hover:border-purple-500/30 transition-all group">
+                        <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
+                            <Layout size={24} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Active Classes</p>
+                            <p className="text-2xl font-black text-white">{availableClasses.length}</p>
+                        </div>
+                    </div>
+                </div>
 
-                        {/* Content Management Tab */}
-                        {activeTab === 'content' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-4">
-                                <div className="lg:col-span-2 space-y-6">
-                                    <div className="flex justify-between items-center">
-                                        <h2 className="text-xl font-bold text-slate-800">Manage Curriculum</h2>
-                                        <div className="text-sm text-slate-500">
-                                            Assigned Subjects: {subjects.length}
-                                        </div>
-                                    </div>
+                {/* Performance Management Section */}
+                <div className="bg-slate-800/50 backdrop-blur-xl rounded-[2.5rem] border-[3px] border-slate-700/50 shadow-2xl overflow-hidden min-h-[500px] flex flex-col">
+                    
+                    {/* Toolbar */}
+                    <div className="p-8 border-b-2 border-slate-700/50 flex flex-col lg:flex-row gap-6 justify-between items-center bg-slate-800/30">
+                        <div className="relative w-full lg:w-96 group">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors" size={20} />
+                            <input 
+                                type="text"
+                                placeholder="Search by name or email..."
+                                className="w-full pl-12 pr-4 py-3 bg-slate-900/50 border-2 border-slate-700 rounded-2xl focus:border-indigo-500 focus:ring-0 text-white font-bold transition-all outline-none"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <button onClick={() => openModal('create_chapter')} className="bg-[#6366f1] p-6 rounded-[2rem] shadow-sm border-b-[5px] border-[#4f46e5] active:border-b-0 active:translate-y-[5px] text-left group transition-all">
-                                            <div className="bg-white/20 w-14 h-14 rounded-2xl flex items-center justify-center mb-4 border-[3px] border-white/20"><Plus className="text-white w-7 h-7" strokeWidth={3} /></div>
-                                            <h3 className="font-display font-black text-white text-xl">Add New Chapter</h3>
-                                            <p className="font-bold text-white/80 mt-1">Create a new unit for {curriculum[selectedSubjectId]?.name || 'a subject'}</p>
-                                        </button>
-
-                                        <button onClick={() => openModal('edit_chapter')} className="bg-[#f97316] p-6 rounded-[2rem] shadow-sm border-b-[5px] border-[#ea580c] active:border-b-0 active:translate-y-[5px] text-left group transition-all">
-                                            <div className="bg-white/20 w-14 h-14 rounded-2xl flex items-center justify-center mb-4 border-[3px] border-white/20"><Edit3 className="text-white w-7 h-7" strokeWidth={3} /></div>
-                                            <h3 className="font-display font-black text-white text-xl">Edit Details</h3>
-                                            <p className="font-bold text-white/80 mt-1">Update title & topics</p>
-                                        </button>
-
-                                        <button onClick={() => openModal('video')} className="bg-[#ef4444] p-6 rounded-[2rem] shadow-sm border-b-[5px] border-[#dc2626] active:border-b-0 active:translate-y-[5px] text-left group transition-all">
-                                            <div className="bg-white/20 w-14 h-14 rounded-2xl flex items-center justify-center mb-4 border-[3px] border-white/20"><Youtube className="text-white w-7 h-7" strokeWidth={3} /></div>
-                                            <h3 className="font-display font-black text-white text-xl">Update Video</h3>
-                                            <p className="font-bold text-white/80 mt-1">Add YouTube links</p>
-                                        </button>
-
-                                        <button onClick={() => openModal('teacher_note')} className="bg-[#3b82f6] p-6 rounded-[2rem] shadow-sm border-b-[5px] border-[#2563eb] active:border-b-0 active:translate-y-[5px] text-left group transition-all">
-                                            <div className="bg-white/20 w-14 h-14 rounded-2xl flex items-center justify-center mb-4 border-[3px] border-white/20"><FileText className="text-white w-7 h-7" strokeWidth={3} /></div>
-                                            <h3 className="font-display font-black text-white text-xl">Teacher's Note</h3>
-                                            <p className="font-bold text-white/80 mt-1">Add tips for students</p>
-                                        </button>
-
-                                        <button onClick={() => openModal('quiz')} className="bg-[#8b5cf6] p-6 rounded-[2rem] shadow-sm border-b-[5px] border-[#7c3aed] active:border-b-0 active:translate-y-[5px] text-left group transition-all">
-                                            <div className="bg-white/20 w-14 h-14 rounded-2xl flex items-center justify-center mb-4 border-[3px] border-white/20"><Upload className="text-white w-7 h-7" strokeWidth={3} /></div>
-                                            <h3 className="font-display font-black text-white text-xl">Create Quiz</h3>
-                                            <p className="font-bold text-white/80 mt-1">MCQ & Fill-in Builder</p>
-                                        </button>
-
-                                        <button onClick={() => openModal('notes')} className="bg-[#10b981] p-6 rounded-[2rem] shadow-sm border-b-[5px] border-[#059669] active:border-b-0 active:translate-y-[5px] text-left group transition-all">
-                                            <div className="bg-white/20 w-14 h-14 rounded-2xl flex items-center justify-center mb-4 border-[3px] border-white/20"><Upload className="text-white w-7 h-7" strokeWidth={3} /></div>
-                                            <h3 className="font-display font-black text-white text-xl">Upload Attachment</h3>
-                                            <p className="font-bold text-white/80 mt-1">Share PDFs or docs</p>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Context Sidebar */}
-                                <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl shadow-sm border-[3px] border-slate-200 dark:border-slate-700 h-fit cartoon-border">
-                                    <h3 className="font-display font-black text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-                                        <CheckCircle className="w-5 h-5 text-[#10b981]" />
-                                        Current Selection
-                                    </h3>
-                                    <div className="space-y-6">
-                                        <div>
-                                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Subject</label>
-                                            <div className="font-bold text-slate-800 dark:text-slate-200 mt-1 text-lg">
-                                                {curriculum[selectedSubjectId]?.name || 'Loading...'}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Chapter</label>
-                                            <div className="font-bold text-slate-800 dark:text-slate-200 mt-1 text-lg">
-                                                {getSelectedChapter()?.title || 'No Chapters Created'}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Status</label>
-                                            <div className="mt-2 flex flex-wrap gap-2">
-                                                {getSelectedChapter()?.content?.videoUrl ? (
-                                                    <span className="px-3 py-1 bg-[#10b981]/10 border-2 border-[#10b981]/20 text-[#10b981] text-xs font-bold rounded-lg">Video Ready</span>
-                                                ) : (
-                                                    <span className="px-3 py-1 bg-slate-200 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-xs font-bold rounded-lg">No Video</span>
-                                                )}
-                                                {getSelectedChapter()?.quiz ? (
-                                                    <span className="px-3 py-1 bg-[#8b5cf6]/10 border-2 border-[#8b5cf6]/20 text-[#8b5cf6] text-xs font-bold rounded-lg">Quiz Active</span>
-                                                ) : (
-                                                    <span className="px-3 py-1 bg-slate-200 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-xs font-bold rounded-lg">No Quiz</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                        <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
+                            <div className="flex items-center gap-3 bg-slate-900/50 px-4 py-2 rounded-2xl border-2 border-slate-700">
+                                <Filter size={18} className="text-slate-500" />
+                                <span className="text-sm font-bold text-slate-400 whitespace-nowrap">Class:</span>
+                                <select 
+                                    className="bg-transparent border-none text-white font-black text-sm focus:ring-0 cursor-pointer outline-none"
+                                    value={classFilter}
+                                    onChange={(e) => setClassFilter(e.target.value)}
+                                >
+                                    <option value="all" className="bg-slate-800">All Classes</option>
+                                    {availableClasses.map(cls => (
+                                        <option key={cls} value={cls} className="bg-slate-800">Class {cls}</option>
+                                    ))}
+                                </select>
                             </div>
-                        )}
 
-                        {/* Performance Tab */}
-                        {activeTab === 'performance' && (
-                            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                    <div>
-                                        <h2 className="text-xl font-display font-black text-slate-800 dark:text-white">Student Progress Report</h2>
-                                        <p className="text-slate-500 dark:text-slate-400 font-medium">Overview of student performance in your subjects</p>
-                                    </div>
-                                </div>
-                                <div className="overflow-x-auto rounded-2xl border-[3px] border-slate-200 dark:border-slate-700 cartoon-border bg-white dark:bg-slate-800">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead className="bg-slate-50 dark:bg-slate-900/50 border-b-[3px] border-slate-200 dark:border-slate-700">
-                                            <tr>
-                                                <th className="p-5 font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">Student</th>
-                                                <th className="p-5 font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">Level</th>
-                                                <th className="p-5 font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">Total XP</th>
-                                                <th className="p-5 font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 text-right">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y-[3px] divide-slate-100 dark:divide-slate-700/50">
-                                            {students.map(student => (
-                                                <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                                                    <td className="p-5">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 overflow-hidden border-[3px] border-slate-200 dark:border-slate-600 flex items-center justify-center text-xl">
-                                                                {student.avatar || '🎓'}
-                                                            </div>
-                                                            <div>
-                                                                <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">{student.name}</div>
-                                                                <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{student.email}</div>
-                                                            </div>
+                            <div className="flex items-center gap-3 bg-slate-900/50 px-4 py-2 rounded-2xl border-2 border-slate-700">
+                                <ArrowUpDown size={18} className="text-slate-500" />
+                                <span className="text-sm font-bold text-slate-400 whitespace-nowrap">Sort By:</span>
+                                <select 
+                                    className="bg-transparent border-none text-white font-black text-sm focus:ring-0 cursor-pointer outline-none"
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value)}
+                                >
+                                    <option value="xp-desc" className="bg-slate-800">Highest XP</option>
+                                    <option value="xp-asc" className="bg-slate-800">Lowest XP</option>
+                                    <option value="level-desc" className="bg-slate-800">Highest Level</option>
+                                    <option value="name-asc" className="bg-slate-800">Name (A-Z)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Table Section */}
+                    <div className="flex-1 overflow-x-auto">
+                        {loading ? (
+                            <div className="h-64 flex items-center justify-center">
+                                <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-500 border-t-transparent shadow-[0_0_15px_rgba(99,102,241,0.5)]"></div>
+                            </div>
+                        ) : (
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-slate-900/30 border-b-2 border-slate-700/50">
+                                    <tr>
+                                        <th className="p-6 font-black text-xs uppercase tracking-[0.2em] text-slate-500">Rank</th>
+                                        <th className="p-6 font-black text-xs uppercase tracking-[0.2em] text-slate-500">Student Profile</th>
+                                        <th className="p-6 font-black text-xs uppercase tracking-[0.2em] text-slate-500">Academic Info</th>
+                                        <th className="p-6 font-black text-xs uppercase tracking-[0.2em] text-slate-500">Performance</th>
+                                        <th className="p-6 font-black text-xs uppercase tracking-[0.2em] text-slate-500 text-right">Activity</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y-2 divide-slate-700/30">
+                                    {filteredStudents.map((student, index) => (
+                                        <tr key={student.id || student._id} className="hover:bg-slate-700/20 transition-all group">
+                                            <td className="p-6">
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg ${
+                                                    index === 0 ? 'bg-amber-500/20 text-amber-500 border-2 border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]' :
+                                                    index === 1 ? 'bg-slate-300/20 text-slate-300 border-2 border-slate-300/30' :
+                                                    index === 2 ? 'bg-orange-500/20 text-orange-500 border-2 border-orange-500/30' :
+                                                    'text-slate-500'
+                                                }`}>
+                                                    #{index + 1}
+                                                </div>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 rounded-2xl bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 group-hover:border-indigo-500/50 transition-all duration-300">
+                                                        {student.avatar || '🎓'}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-black text-white text-lg group-hover:text-indigo-400 transition-colors">{student.name}</div>
+                                                        <div className="text-sm font-bold text-slate-500">{student.email}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 rounded-lg text-xs font-black border-2 border-indigo-500/20">Class {student.classLevel || 'N/A'}</span>
+                                                        {student.stream && (
+                                                            <span className="px-3 py-1 bg-purple-500/10 text-purple-400 rounded-lg text-xs font-black border-2 border-purple-500/20">{student.stream}</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-xs font-bold text-slate-500 ml-1">{student.school || 'EduNexus Academy'}</div>
+                                                </div>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="flex items-center gap-6">
+                                                    <div>
+                                                        <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">XP Points</div>
+                                                        <div className="text-xl font-black text-indigo-400 flex items-center gap-2">
+                                                            <Zap size={16} fill="currentColor" />
+                                                            {student.xp?.toLocaleString() || 0}
                                                         </div>
-                                                    </td>
-                                                    <td className="p-5">
-                                                        <span className="px-3 py-1 bg-[#f59e0b]/10 text-[#f59e0b] rounded-lg text-xs font-bold border-2 border-[#f59e0b]/20">
-                                                            Lvl {student.level || 1}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-5 font-black text-[#6366f1] dark:text-[#818cf8]">
-                                                        {student.xp || 0} XP
-                                                    </td>
-                                                    <td className="p-5 text-right">
-                                                        <button className="text-[#14b8a6] hover:text-[#0d9488] font-bold text-sm underline">View Details</button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            {students.length === 0 && (
-                                                <tr>
-                                                    <td colSpan="4" className="p-8 text-center text-slate-400 dark:text-slate-500 font-bold">
-                                                        No students found.
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
+                                                    </div>
+                                                    <div className="h-10 w-[2px] bg-slate-700/50"></div>
+                                                    <div>
+                                                        <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Level</div>
+                                                        <div className="text-xl font-black text-amber-500 flex items-center gap-2">
+                                                            <Award size={16} />
+                                                            {student.level || 1}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="p-6 text-right">
+                                                <div className="inline-flex flex-col items-end">
+                                                    <div className="flex items-center gap-2 text-emerald-400 font-black mb-1">
+                                                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                        {student.streak || 0} Day Streak
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => handleViewReport(student)}
+                                                        className="text-indigo-400 hover:text-indigo-300 font-bold text-sm underline underline-offset-4 decoration-indigo-500/30 hover:decoration-indigo-500 transition-all"
+                                                    >
+                                                        Full Report
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {filteredStudents.length === 0 && (
+                                        <tr>
+                                            <td colSpan="5" className="p-20 text-center">
+                                                <div className="bg-slate-900/50 rounded-[2rem] p-12 border-2 border-dashed border-slate-700 max-w-md mx-auto">
+                                                    <div className="w-20 h-20 bg-slate-800 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-6">🔍</div>
+                                                    <h3 className="text-xl font-black text-white mb-2">No students found</h3>
+                                                    <p className="text-slate-500 font-bold">Try adjusting your filters or search terms to find what you're looking for.</p>
+                                                    <button 
+                                                        onClick={() => {setSearchTerm(''); setClassFilter('all');}}
+                                                        className="mt-6 text-indigo-400 font-black hover:text-indigo-300 transition-colors"
+                                                    >
+                                                        Clear All Filters
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* Modal */}
-            {showUploadModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 dark:bg-slate-900/90 backdrop-blur-sm min-h-screen">
-                    <div className={`bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full ${modalMode === 'quiz' ? 'max-w-4xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200 border-[3px] border-slate-200 dark:border-slate-600 cartoon-border flex flex-col`}>
-                        <div className="p-6 border-b-[3px] border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 flex justify-between items-center rounded-t-[2rem] shrink-0 sticky top-0 z-10">
-                            <h3 className="font-display font-black text-xl text-slate-800 dark:text-white capitalize tracking-wide">
-                                {modalMode === 'quiz' ? 'Create Quiz' : modalMode.replace('_', ' ')}
-                            </h3>
-                            <button type="button" onClick={() => setShowUploadModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 bg-white dark:bg-slate-700 p-2 rounded-xl border-2 border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 transition-colors">
-                                <X size={20} strokeWidth={3} />
+            {/* Report Modal */}
+            {showReportModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="bg-slate-900 rounded-[3rem] border-[3px] border-slate-700/50 shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200">
+                        {/* Modal Header */}
+                        <div className="p-8 border-b-2 border-slate-800 flex justify-between items-center bg-slate-900/50 sticky top-0 z-10">
+                            <div className="flex items-center gap-5">
+                                <div className="text-4xl w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center border-2 border-slate-700 shadow-inner">
+                                    {selectedStudent?.avatar || '🎓'}
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-display font-black text-white">{selectedStudent?.name}'s Progress Report</h2>
+                                    <p className="text-indigo-400 font-bold text-sm tracking-wide">Academic Monitoring Dashboard</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setShowReportModal(false)}
+                                className="w-12 h-12 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-2xl flex items-center justify-center border-2 border-slate-700 transition-all"
+                            >
+                                <X size={24} />
                             </button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                            {/* Subject & Chapter Selection */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest ml-1">Subject</label>
-                                    <select
-                                        className="w-full px-4 py-3 border-[3px] border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-slate-100 font-bold focus:ring-0 focus:border-[#6366f1] focus:bg-white dark:focus:bg-slate-700 transition-colors outline-none cursor-pointer"
-                                        value={selectedSubjectId}
-                                        onChange={(e) => setSelectedSubjectId(e.target.value)}
-                                    >
-                                        {subjects.map(subject => (
-                                            <option key={subject.id} value={subject.id} className="font-bold">{subject.name || subject.title}</option>
-                                        ))}
-                                    </select>
+                        {/* Modal Content */}
+                        <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                            
+                            {/* Detailed Stats */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="bg-slate-800/50 p-6 rounded-3xl border-2 border-slate-700/50">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <Zap className="text-indigo-400" size={20} />
+                                        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">XP Points</h3>
+                                    </div>
+                                    <p className="text-3xl font-black text-white">{selectedStudent?.xp?.toLocaleString() || 0} <span className="text-lg text-slate-500">XP</span></p>
+                                    <div className="mt-4 h-2 w-full bg-slate-700 rounded-full overflow-hidden">
+                                        <div className="h-full bg-indigo-500" style={{ width: `${(selectedStudent?.xp % 1000) / 10}%` }}></div>
+                                    </div>
+                                    <p className="mt-2 text-[10px] font-black text-slate-500 uppercase">Progress to Next Level</p>
                                 </div>
+                                <div className="bg-slate-800/50 p-6 rounded-3xl border-2 border-slate-700/50">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <Award className="text-amber-500" size={20} />
+                                        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Global Rank</h3>
+                                    </div>
+                                    <p className="text-3xl font-black text-white">#{selectedStudent?.rank || '--'}</p>
+                                    <p className="mt-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">In Level {selectedStudent?.level || 1}</p>
+                                </div>
+                                <div className="bg-slate-800/50 p-6 rounded-3xl border-2 border-slate-700/50">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <BookOpen className="text-emerald-400" size={20} />
+                                        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Chapters</h3>
+                                    </div>
+                                    <p className="text-3xl font-black text-white">{selectedStudent?.completedChapters?.length || 0}</p>
+                                    <p className="mt-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">Curriculum Progress</p>
+                                </div>
+                            </div>
 
-                                {modalMode !== 'create_chapter' && (
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest ml-1">Chapter</label>
-                                        <select
-                                            className="w-full px-4 py-3 border-[3px] border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-slate-100 font-bold focus:ring-0 focus:border-[#6366f1] focus:bg-white dark:focus:bg-slate-700 transition-colors outline-none cursor-pointer"
-                                            value={selectedChapterId}
-                                            onChange={(e) => setSelectedChapterId(e.target.value)}
-                                        >
-                                            {curriculum[selectedSubjectId]?.chapters.map(chapter => (
-                                                <option key={chapter.id} value={chapter.id} className="font-bold">{chapter.title}</option>
-                                            ))}
-                                        </select>
+                            {/* Quiz Attempts History */}
+                            <div>
+                                <h3 className="text-xl font-display font-black text-white mb-6 flex items-center gap-3">
+                                    <BarChart2 className="text-indigo-400" />
+                                    Quiz Performance History
+                                </h3>
+                                
+                                {isReportLoading ? (
+                                    <div className="p-20 flex flex-col items-center justify-center gap-4 bg-slate-800/30 rounded-[2rem] border-2 border-dashed border-slate-700">
+                                        <div className="animate-spin rounded-full h-10 w-10 border-4 border-indigo-500 border-t-transparent"></div>
+                                        <p className="font-bold text-slate-500">Retrieving academic records...</p>
+                                    </div>
+                                ) : studentAttempts.length > 0 ? (
+                                    <div className="rounded-[2rem] overflow-hidden border-2 border-slate-800">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead className="bg-slate-800/50">
+                                                <tr>
+                                                    <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] pl-6">Subject</th>
+                                                    <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Chapter</th>
+                                                    <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Score</th>
+                                                    <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Status</th>
+                                                    <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] pr-6 text-right">Date</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y-2 divide-slate-800/50 bg-slate-800/20">
+                                                {studentAttempts.map((attempt) => (
+                                                    <tr key={attempt.id || attempt._id} className="hover:bg-slate-800/40 transition-colors group">
+                                                        <td className="p-4 pl-6 font-bold text-slate-200">
+                                                            {curriculum[attempt.subjectId]?.name || 'Social Science'}
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="font-bold text-white text-sm">
+                                                                {curriculum[attempt.subjectId]?.chapters?.find(ch => ch.id === attempt.chapterId)?.title || `Chapter ${attempt.chapterId}`}
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="flex flex-col">
+                                                                <span className={`font-black ${attempt.score >= (attempt.totalPoints * 0.6) ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                    {attempt.score} / {attempt.totalPoints}
+                                                                </span>
+                                                                <div className="w-20 h-1 bg-slate-700 rounded-full mt-1 overflow-hidden">
+                                                                    <div 
+                                                                        className={`h-full ${attempt.score >= (attempt.totalPoints * 0.6) ? 'bg-emerald-500' : 'bg-red-500'}`}
+                                                                        style={{ width: `${(attempt.score / attempt.totalPoints) * 100}%` }}
+                                                                    ></div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            {attempt.passed ? (
+                                                                <span className="flex items-center gap-2 text-emerald-400 text-xs font-black">
+                                                                    <CheckCircle size={14} /> PASSED
+                                                                </span>
+                                                            ) : (
+                                                                <span className="flex items-center gap-2 text-red-400 text-xs font-black">
+                                                                    <XCircle size={14} /> FAILED
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-4 pr-6 text-right text-xs font-bold text-slate-500">
+                                                            {new Date(attempt.completedAt).toLocaleDateString()}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="p-16 flex flex-col items-center justify-center bg-slate-800/20 rounded-[2rem] border-2 border-dashed border-slate-700 text-center">
+                                        <div className="text-4xl mb-4">📓</div>
+                                        <h4 className="text-lg font-black text-white">No quiz history available</h4>
+                                        <p className="text-slate-500 font-bold max-w-xs mx-auto mt-1">This student hasn't completed any quizzes yet in the current subjects.</p>
                                     </div>
                                 )}
                             </div>
 
-                            {/* Standard Modes */}
-                            {(modalMode === 'create_chapter' || modalMode === 'edit_chapter') && (
-                                <>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest ml-1">Chapter Title</label>
-                                        <input type="text" className="w-full px-4 py-3 border-[3px] border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-slate-100 font-bold focus:ring-0 focus:border-[#6366f1] focus:bg-white dark:focus:bg-slate-700 transition-colors outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500" placeholder="e.g. Chapter 4: Optics" value={chapterTitle} onChange={(e) => setChapterTitle(e.target.value)} required />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest ml-1">Description</label>
-                                        <textarea className="w-full px-4 py-3 border-[3px] border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-slate-100 font-bold focus:ring-0 focus:border-[#6366f1] focus:bg-white dark:focus:bg-slate-700 transition-colors outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500" rows="3" placeholder="Overview..." value={chapterDesc} onChange={(e) => setChapterDesc(e.target.value)} required />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest ml-1">Topics (One per line)</label>
-                                        <textarea className="w-full px-4 py-3 border-[3px] border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-slate-100 font-bold focus:ring-0 focus:border-[#6366f1] focus:bg-white dark:focus:bg-slate-700 transition-colors outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500" rows="4" placeholder="Topic 1&#10;Topic 2" value={chapterTopics} onChange={(e) => setChapterTopics(e.target.value)} />
-                                    </div>
-                                </>
-                            )}
-
-                            {modalMode === 'teacher_note' && (
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest ml-1">Note for Students</label>
-                                    <textarea className="w-full px-4 py-3 border-[3px] border-slate-200 dark:border-slate-600 rounded-xl bg-blue-50/50 dark:bg-[#3b82f6]/10 text-slate-800 dark:text-slate-100 font-bold focus:ring-0 focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#3b82f6]/20 transition-colors outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500" rows="4" placeholder="Add important tips..." value={teacherNote} onChange={(e) => setTeacherNote(e.target.value)} />
-                                </div>
-                            )}
-
-                            {modalMode === 'video' && (
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest ml-1">YouTube Video Link</label>
-                                    <div className="relative">
-                                        <Youtube className="absolute left-4 top-4 text-slate-400 dark:text-slate-500" size={18} />
-                                        <input type="text" className="w-full pl-11 px-4 py-3 border-[3px] border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-slate-100 font-bold focus:ring-0 focus:border-[#ef4444] focus:bg-white dark:focus:bg-slate-700 transition-colors outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500" placeholder="YouTube URL..." value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} required />
-                                    </div>
-                                </div>
-                            )}
-
-                            {modalMode === 'notes' && (
-                                <>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest ml-1">Attachment Title</label>
-                                        <input type="text" className="w-full px-4 py-3 border-[3px] border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-slate-100 font-bold focus:ring-0 focus:border-[#6366f1] focus:bg-white dark:focus:bg-slate-700 transition-colors outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500" value={attachmentName} onChange={(e) => setAttachmentName(e.target.value)} required />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest ml-1">File</label>
-                                        <div className="border-[3px] border-dashed border-slate-300 dark:border-slate-600 rounded-2xl p-8 text-center hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors cursor-pointer group" onClick={() => fileInputRef.current?.click()}>
-                                            <div className="bg-slate-100 dark:bg-slate-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-                                                <Upload className="text-slate-400 dark:text-slate-300" size={24} />
-                                            </div>
-                                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{attachmentFile ? attachmentFile.name : "Click to select file"}</p>
-                                            <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-
-                            {/* Quiz Builder UI */}
-                            {modalMode === 'quiz' && (
-                                <div className="space-y-6">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest">Quiz Title</label>
-                                        <input
-                                            type="text"
-                                            className="w-full px-4 py-3 border-[3px] border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-bold focus:ring-0 focus:border-[#6366f1] focus:bg-white dark:focus:bg-slate-800 transition-colors outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
-                                            value={quizTitle}
-                                            onChange={(e) => setQuizTitle(e.target.value)}
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                                        {questions.map((q, qIndex) => (
-                                            <div key={qIndex} className="p-6 border-[3px] border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-800/50 relative group shadow-sm cartoon-border">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeQuestion(qIndex)}
-                                                    className="absolute top-4 right-4 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-slate-800 p-2 rounded-xl border-2 border-slate-200 dark:border-slate-600 shadow-sm"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Question Type</label>
-                                                        <select
-                                                            className="w-full px-4 py-3 border-[3px] border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-bold text-sm focus:ring-0 focus:border-[#6366f1] focus:bg-white dark:focus:bg-slate-800 transition-colors outline-none"
-                                                            value={q.type}
-                                                            onChange={(e) => updateQuestion(qIndex, 'type', e.target.value)}
-                                                        >
-                                                            <option value="mcq">Multiple Choice</option>
-                                                            <option value="fill-in">Fill in the Blanks</option>
-                                                        </select>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Points</label>
-                                                        <input
-                                                            type="number"
-                                                            className="w-full px-4 py-3 border-[3px] border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-bold text-sm focus:ring-0 focus:border-[#6366f1] focus:bg-white dark:focus:bg-slate-800 transition-colors outline-none"
-                                                            value={q.points}
-                                                            onChange={(e) => updateQuestion(qIndex, 'points', e.target.value)}
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                <div className="mb-4">
-                                                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest">Question Text</label>
-                                                    <textarea
-                                                        className="w-full px-4 py-3 border-[3px] border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-bold focus:ring-0 focus:border-[#6366f1] focus:bg-white dark:focus:bg-slate-800 transition-colors outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
-                                                        rows="2"
-                                                        value={q.question}
-                                                        onChange={(e) => updateQuestion(qIndex, 'question', e.target.value)}
-                                                        placeholder="Enter question here..."
-                                                    />
-                                                </div>
-
-                                                <div className="mb-4">
-                                                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest flex items-center gap-2">
-                                                        <ImageIcon size={16} /> Optional Figure (Image)
-                                                    </label>
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-secondary-50 file:text-secondary-700 hover:file:bg-secondary-100 cursor-pointer"
-                                                        onChange={(e) => handleQuestionImageUpload(e, qIndex)}
-                                                    />
-                                                    {q.image && (
-                                                        <img src={q.image} alt="Question Figure" className="mt-2 h-20 object-contain rounded border border-slate-200" />
-                                                    )}
-                                                </div>
-
-                                                {q.type === 'mcq' && (
-                                                    <div className="space-y-2 mb-4">
-                                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest">Options</label>
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                            {q.options.map((opt, oIndex) => (
-                                                                <input
-                                                                    key={oIndex}
-                                                                    type="text"
-                                                                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                                                                    placeholder={`Option ${oIndex + 1}`}
-                                                                    value={opt}
-                                                                    onChange={(e) => updateOption(qIndex, oIndex, e.target.value)}
-                                                                />
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-
+                            {/* Badges Section */}
+                            <div>
+                                <h3 className="text-xl font-display font-black text-white mb-6 flex items-center gap-3">
+                                    <Award className="text-amber-500" />
+                                    Earned Badges
+                                </h3>
+                                <div className="flex flex-wrap gap-4">
+                                    {selectedStudent?.badges?.length > 0 ? (
+                                        selectedStudent.badges.map((badge, idx) => (
+                                            <div key={idx} className="bg-slate-800/50 px-5 py-3 rounded-2xl border-2 border-slate-700/50 flex items-center gap-3 hover:border-amber-500/30 transition-all group">
+                                                <span className="text-2xl group-hover:scale-125 transition-transform">{badge.icon || '🏅'}</span>
                                                 <div>
-                                                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-widest">Correct Answer</label>
-                                                    <input
-                                                        type="text"
-                                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                                                        placeholder={q.type === 'mcq' ? "Must match one option exactly" : "Correct word/phrase"}
-                                                        value={q.correctAnswer}
-                                                        onChange={(e) => updateQuestion(qIndex, 'correctAnswer', e.target.value)}
-                                                    />
+                                                    <p className="text-xs font-black text-white leading-tight">{badge.name}</p>
+                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Achieved!</p>
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        onClick={addQuestion}
-                                        className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-secondary-500 hover:text-secondary-600 font-medium transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        <Plus size={20} /> Add Question
-                                    </button>
+                                        ))
+                                    ) : (
+                                        <div className="px-6 py-3 rounded-2xl border-2 border-dashed border-slate-700 text-slate-500 font-bold text-sm">
+                                            No badges earned yet
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-
-                            <div className="pt-4 flex justify-end gap-3 sticky bottom-0 bg-white border-t border-slate-100">
-                                <button type="button" onClick={() => setShowUploadModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium">Cancel</button>
-                                <button type="submit" className="btn-primary">
-                                    {modalMode === 'quiz' ? 'Create Quiz' : 'Save Changes'}
-                                </button>
                             </div>
-                        </form>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-8 border-t-2 border-slate-800 bg-slate-900/80 sticky bottom-0 flex justify-end gap-4">
+                            <button 
+                                onClick={() => setShowReportModal(false)}
+                                className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-2xl border-2 border-slate-700 transition-all uppercase tracking-widest text-xs"
+                            >
+                                Close Report
+                            </button>
+                            <button 
+                                onClick={() => window.print()}
+                                className="px-8 py-3 bg-indigo-500 hover:bg-indigo-600 text-white font-black rounded-2xl shadow-[0_0_20px_rgba(99,102,241,0.3)] transition-all uppercase tracking-widest text-xs flex items-center gap-2"
+                            >
+                                Print Report
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
