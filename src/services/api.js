@@ -60,11 +60,11 @@ export const subjectAPI = {
 };
 
 // Chapter APIs
-// Chapter APIs
 export const chapterAPI = {
     getBySubject: (subjectId) => api.get(`/chapters/subject/${subjectId}`),
     getOne: (subjectId, chapterId) => api.get(`/chapters/${subjectId}/${chapterId}`),
     create: (data) => api.post('/chapters', data),
+    fastUpload: (data) => api.post('/chapters/fast-upload', data),
     update: (subjectId, chapterId, data) => api.put(`/chapters/${subjectId}/${chapterId}`, data),
     addVideo: (subjectId, chapterId, videoUrl) => api.put(`/chapters/${subjectId}/${chapterId}/video`, { videoUrl }),
     addAttachment: (subjectId, chapterId, attachment) => api.post(`/chapters/${subjectId}/${chapterId}/attachments`, { ...attachment })
