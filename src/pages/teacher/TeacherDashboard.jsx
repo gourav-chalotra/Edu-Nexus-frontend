@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCurriculum } from '../../context/CurriculumContext';
 import { userAPI, quizAPI } from '../../services/api';
-import { BarChart2, Users, Search, Filter, ArrowUpDown, Award, Zap, Layout, X, Calendar, CheckCircle, XCircle, Clock, BookOpen } from 'lucide-react';
+import { BarChart2, Users, Search, Filter, ArrowUpDown, Award, Zap, Layout, X, Calendar, CheckCircle, XCircle, Clock, BookOpen, Upload } from 'lucide-react';
+import FastUploadModal from './FastUploadModal';
 
 const TeacherDashboard = () => {
     const { user, logout } = useAuth();
@@ -30,6 +31,9 @@ const TeacherDashboard = () => {
     const [studentAttempts, setStudentAttempts] = useState([]);
     const [showReportModal, setShowReportModal] = useState(false);
     const [isReportLoading, setIsReportLoading] = useState(false);
+
+    // Fast Upload Modal State
+    const [showFastUpload, setShowFastUpload] = useState(false);
 
     // Get unique classes from assigned subjects or students
     const availableClasses = useMemo(() => {
@@ -125,6 +129,12 @@ const TeacherDashboard = () => {
                     </div>
 
                     <div className="flex items-center gap-4 relative z-10">
+                        <button 
+                            onClick={() => setShowFastUpload(true)} 
+                            className="px-6 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-bold transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)] flex items-center gap-2 hover:-translate-y-1"
+                        >
+                            <Upload size={20} /> Fast Upload
+                        </button>
                         <button onClick={logout} className="px-6 py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold transition-all border-2 border-red-500/20 hover:border-red-500/40 flex items-center gap-2">
                             Logout
                         </button>
@@ -510,6 +520,13 @@ const TeacherDashboard = () => {
                     </div>
                 </div>
             )}
+
+            {/* Fast Upload Modal */}
+            <FastUploadModal 
+                isOpen={showFastUpload} 
+                onClose={() => setShowFastUpload(false)} 
+                subjects={subjects} 
+            />
         </div>
     );
 };
