@@ -119,11 +119,11 @@ const Login = () => {
                             </div>
                             <code className="text-xs bg-white dark:bg-slate-800 px-2 py-1 rounded-md text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 group-hover:border-[#f59e0b]/50 transition-colors">teacher@demo.com</code>
                         </button>
-                        <button type="button" onClick={() => setDemo('admin@edu.nexus')} className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-900 p-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 transition-colors group">
+                        <button type="button" onClick={() => setDemo('admin@demo.com')} className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-900 p-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 transition-colors group">
                             <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-bold text-sm">
                                 <ShieldAlert className="w-4 h-4 text-[#ef4444]" /> Admin
                             </div>
-                            <code className="text-xs bg-white dark:bg-slate-800 px-2 py-1 rounded-md text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 group-hover:border-[#ef4444]/50 transition-colors">admin@edu.nexus</code>
+                            <code className="text-xs bg-white dark:bg-slate-800 px-2 py-1 rounded-md text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 group-hover:border-[#ef4444]/50 transition-colors">admin@demo.com</code>
                         </button>
                     </div>
                 </div>

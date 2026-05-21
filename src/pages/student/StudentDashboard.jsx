@@ -206,7 +206,7 @@ const StudentDashboard = () => {
                                                             <div className={`w-14 h-14 rounded-[1.25rem] ${theme.lightBg} flex items-center justify-center ${theme.text} group-hover:scale-110 transition-transform shadow-sm`}>
                                                                 <span className="material-symbols-outlined text-[28px]">science</span>
                                                             </div>
-                                                            <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] px-3 py-1.5 rounded-full font-black uppercase tracking-widest shadow-inner whitespace-nowrap">Class {subject.classLevel}</span>
+                                                            <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] px-3 py-1.5 rounded-full font-black uppercase tracking-widest shadow-inner whitespace-nowrap">Class {user?.classLevel || subject.classes?.[0] || '?'}</span>
                                                         </div>
                                                         <h3 className="font-display font-bold text-2xl text-white mb-2 leading-tight pr-4">{subject.title || subject.name}</h3>
                                                         <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-8 line-clamp-2 pr-4">
