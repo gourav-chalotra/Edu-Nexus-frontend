@@ -68,7 +68,7 @@ const StudentDashboard = () => {
     ];
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-100 font-body antialiased transition-colors duration-300 pb-20">
+        <div className="min-h-screen bg-white dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-100 font-body antialiased transition-colors duration-300 pb-20">
             {/* Top Navigation / Header */}
             <header className="sticky top-0 z-50 w-full backdrop-blur-md bg-white/70 dark:bg-[#0a0a0c]/70 border-b-2 border-slate-200 dark:border-slate-800 transition-colors duration-300">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex justify-between items-center">
