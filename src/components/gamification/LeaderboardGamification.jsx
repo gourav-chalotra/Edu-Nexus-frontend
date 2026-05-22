@@ -28,7 +28,7 @@ const Leaderboard = ({ limit = 5, showFull = false }) => {
     if (loading) return <div className="text-center py-4 text-slate-500">Loading rankings...</div>;
 
     return (
-        <div className="bg-[#0f172a] dark:bg-black rounded-xl shadow-2xl border border-slate-800 overflow-hidden">
+        <div className="bg-white dark:bg-black rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <div className="p-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white flex justify-between items-center">
                 <h3 className="font-bold flex items-center gap-2">
                     <Trophy size={18} className="text-yellow-200" /> Leaderboard
@@ -36,11 +36,11 @@ const Leaderboard = ({ limit = 5, showFull = false }) => {
                 <span className="text-xs font-medium bg-white/20 px-2 py-1 rounded-full">Top {leaders.length}</span>
             </div>
 
-            <div className="divide-y divide-slate-800/50">
+            <div className="divide-y divide-slate-200 dark:divide-slate-800/50">
                 {leaders.map((student, index) => {
                     const rank = index + 1;
                     return (
-                        <div key={student.id} className={clsx("p-3 flex items-center gap-3 hover:bg-slate-800/50 transition-colors",
+                        <div key={student.id} className={clsx("p-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors",
                             rank === 1 ? "bg-amber-500/10" : "")}>
                             <div className="font-bold text-slate-400 w-6 text-center" >
                                 {rank === 1 ? <Crown size={20} className="text-amber-500 mx-auto" /> :
@@ -65,8 +65,8 @@ const Leaderboard = ({ limit = 5, showFull = false }) => {
                             </div>
 
                             <div className="flex-1 min-w-0">
-                                <h4 className="font-bold text-slate-100 text-sm truncate">{student.name}</h4>
-                                <p className="text-xs text-slate-400">{student.level ? `Level ${student.level}` : 'Rookie'}</p>
+                                <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">{student.name}</h4>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">{student.level ? `Level ${student.level}` : 'Rookie'}</p>
                             </div>
 
                             <div className="text-right">

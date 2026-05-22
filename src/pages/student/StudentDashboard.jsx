@@ -68,15 +68,15 @@ const StudentDashboard = () => {
     ];
 
     return (
-        <div className="min-h-screen bg-[#0a0a0c] text-slate-100 font-body antialiased transition-colors duration-300 pb-20">
+        <div className="min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-slate-900 dark:text-slate-100 font-body antialiased transition-colors duration-300 pb-20">
             {/* Top Navigation / Header */}
-            <header className="sticky top-0 z-50 w-full backdrop-blur-md bg-[#0a0a0c]/70 border-b-2 border-slate-800 transition-colors duration-300">
+            <header className="sticky top-0 z-50 w-full backdrop-blur-md bg-white/70 dark:bg-[#0a0a0c]/70 border-b-2 border-slate-200 dark:border-slate-800 transition-colors duration-300">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex justify-between items-center">
                     <div className="flex items-center gap-3 cursor-pointer">
                         <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-[#6366f1] to-[#14b8a6] flex items-center justify-center text-white shadow-lg relative cartoon-border">
                             <span className="material-symbols-outlined text-2xl font-bold">school</span>
                         </div>
-                        <span className="text-2xl font-display font-bold tracking-tight text-white transition-colors duration-300 hidden sm:block">Edu Nexus</span>
+                        <span className="text-2xl font-display font-bold tracking-tight text-slate-900 dark:text-white transition-colors duration-300 hidden sm:block">Edu Nexus</span>
                     </div>
 
                     <div className="flex items-center gap-4">
@@ -112,7 +112,7 @@ const StudentDashboard = () => {
                 {/* Welcome Section */}
                 <div className="mb-8 flex justify-between items-end">
                     <div>
-                        <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-2">Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#6366f1] to-[#14b8a6]">{user?.name?.split(' ')[0]}!</span> 🚀</h1>
+                        <h1 className="text-4xl md:text-5xl font-display font-bold text-slate-900 dark:text-white mb-2">Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#6366f1] to-[#14b8a6]">{user?.name?.split(' ')[0]}!</span> 🚀</h1>
                         <p className="text-lg text-slate-600 dark:text-slate-400 font-medium">Ready to boost your XP today?</p>
                     </div>
                 </div>
@@ -122,7 +122,7 @@ const StudentDashboard = () => {
                     <div className="lg:col-span-2 space-y-8">
 
                         {/* Progress Card */}
-                        <div className="relative overflow-hidden rounded-[2.5rem] bg-slate-900 dark:bg-slate-800/80 p-8 cartoon-border pop-shadow text-white border-[4px] border-slate-900 dark:border-slate-700">
+                        <div className="relative overflow-hidden rounded-[2.5rem] bg-white dark:bg-slate-800/80 p-8 cartoon-border pop-shadow text-slate-900 dark:text-white border-[4px] border-slate-200 dark:border-slate-700">
                             <div className="absolute top-0 right-0 p-8 opacity-20 transform rotate-12 group-hover:rotate-0 transition-transform duration-500 hidden sm:block">
                                 <span className="material-symbols-outlined text-[160px] text-[#fbbf24]">emoji_events</span>
                             </div>
@@ -163,7 +163,7 @@ const StudentDashboard = () => {
                                 <div className="w-12 h-12 rounded-2xl bg-[#6366f1]/10 dark:bg-[#6366f1]/20 flex items-center justify-center text-[#6366f1] shadow-inner">
                                     <span className="material-symbols-outlined text-[30px]">menu_book</span>
                                 </div>
-                                <h2 className="text-2xl font-display font-bold text-white">My Subjects</h2>
+                                <h2 className="text-2xl font-display font-bold text-slate-900 dark:text-white">My Subjects</h2>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-2">
                                 {loading ? (
@@ -200,7 +200,7 @@ const StudentDashboard = () => {
                                                     <div
                                                         key={subject.id}
                                                         onClick={() => navigate(`/subject/${subject.id}`)}
-                                                        className={`bg-[#1a1a1c] dark:bg-slate-900 rounded-[2.5rem] p-6 cursor-pointer group border-[5px] border-slate-800 dark:border-slate-700 ${theme.hover} hover:-translate-y-2 transition-all duration-300 shadow-sm hover:shadow-xl relative overflow-hidden`}
+                                                        className={`bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 cursor-pointer group border-[5px] border-slate-200 dark:border-slate-700 ${theme.hover} hover:-translate-y-2 transition-all duration-300 shadow-sm hover:shadow-xl relative overflow-hidden`}
                                                     >
                                                         <div className="flex justify-between items-start mb-5">
                                                             <div className={`w-14 h-14 rounded-[1.25rem] ${theme.lightBg} flex items-center justify-center ${theme.text} group-hover:scale-110 transition-transform shadow-sm`}>
@@ -208,7 +208,7 @@ const StudentDashboard = () => {
                                                             </div>
                                                             <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] px-3 py-1.5 rounded-full font-black uppercase tracking-widest shadow-inner whitespace-nowrap">Class {user?.classLevel || subject.classes?.[0] || '?'}</span>
                                                         </div>
-                                                        <h3 className="font-display font-bold text-2xl text-white mb-2 leading-tight pr-4">{subject.title || subject.name}</h3>
+                                                        <h3 className="font-display font-bold text-2xl text-slate-900 dark:text-white mb-2 leading-tight pr-4">{subject.title || subject.name}</h3>
                                                         <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-8 line-clamp-2 pr-4">
                                                             {subject.chapters && subject.chapters.length > 0
                                                                 ? `${subject.chapters.length} Chapters • Start learning ${subject.chapters[0].title}`
@@ -243,7 +243,7 @@ const StudentDashboard = () => {
                         {/* Leaderboard Widget */}
                         <div className="relative">
                             <div className="absolute -inset-2 bg-gradient-to-b from-[#fbbf24] to-[#f97316] rounded-[3rem] blur opacity-20 dark:opacity-10 pointer-events-none"></div>
-                            <div className="relative bg-[#0a0a0c] dark:bg-black rounded-[2.5rem] border-[4px] border-slate-800 dark:border-slate-700 shadow-2xl overflow-hidden p-[2px]">
+                            <div className="relative bg-white dark:bg-black rounded-[2.5rem] border-[4px] border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden p-[2px]">
                                 <div className="bg-slate-900/50 dark:bg-slate-900/50 rounded-[2.3rem] overflow-hidden">
                                     <Leaderboard limit={5} />
                                     <div className="bg-[#1a1a1c] dark:bg-slate-800 p-3 text-center border-t border-slate-800 dark:border-slate-700">
@@ -256,9 +256,9 @@ const StudentDashboard = () => {
                         </div>
 
                         {/* Daily Quests */}
-                        <div className="bg-[#1a1a1c] dark:bg-black/40 rounded-[2.5rem] border-4 border-slate-800 dark:border-slate-700 p-8 shadow-sm hover:shadow-xl transition-shadow relative overflow-hidden group">
+                        <div className="bg-white dark:bg-black/40 rounded-[2.5rem] border-4 border-slate-200 dark:border-slate-700 p-8 shadow-sm hover:shadow-xl transition-shadow relative overflow-hidden group">
                             <div className="absolute -right-6 -top-6 w-24 h-24 bg-[#14b8a6]/10 rounded-full blur-xl pointer-events-none"></div>
-                            <h3 className="font-display font-bold text-2xl text-slate-100 mb-6 flex items-center gap-3">
+                            <h3 className="font-display font-bold text-2xl text-slate-900 dark:text-slate-100 mb-6 flex items-center gap-3">
                                 <div className="w-12 h-12 rounded-2xl bg-[#14b8a6]/10 dark:bg-[#14b8a6]/20 flex items-center justify-center text-[#14b8a6] shadow-sm">
                                     <span className="material-symbols-outlined text-[28px]">schedule</span>
                                 </div>
@@ -287,9 +287,9 @@ const StudentDashboard = () => {
                         </div>
 
                         {/* Badges */}
-                        <div className="bg-[#1a1a1c] dark:bg-black/40 rounded-[2.5rem] border-4 border-slate-800 dark:border-slate-700 p-8 shadow-sm hover:shadow-xl transition-shadow relative overflow-hidden">
+                        <div className="bg-white dark:bg-black/40 rounded-[2.5rem] border-4 border-slate-200 dark:border-slate-700 p-8 shadow-sm hover:shadow-xl transition-shadow relative overflow-hidden">
                             <div className="absolute -right-6 -top-6 w-24 h-24 bg-[#fbbf24]/10 rounded-full blur-xl pointer-events-none"></div>
-                            <h3 className="font-display font-bold text-2xl text-slate-100 mb-6 flex items-center gap-3">
+                            <h3 className="font-display font-bold text-2xl text-slate-900 dark:text-slate-100 mb-6 flex items-center gap-3">
                                 <div className="w-12 h-12 rounded-2xl bg-[#fbbf24]/10 flex items-center justify-center text-[#fbbf24] shadow-sm">
                                     <span className="material-symbols-outlined text-[28px]">workspace_premium</span>
                                 </div>
